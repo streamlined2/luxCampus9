@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.MathContext;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -22,7 +23,7 @@ public final class Inspector {
 	}
 
 	public static <T> void callMethodsWithNoArgs(T obj) {
-		selectPerform(obj, method -> method.getParameterCount() == 0, (T o, Method m) -> {
+		selectMethodsPerform(obj, method -> method.getParameterCount() == 0, (T o, Method m) -> {
 			try {
 				m.setAccessible(true);
 				m.invoke(o);
@@ -32,19 +33,19 @@ public final class Inspector {
 		});
 	}
 
-	private static <T> void selectPerform(Class<T> cl, Predicate<Method> methodCheck,
+	private static <T> void selectMethodsPerform(Class<T> cl, Predicate<Method> methodCheck,
 			BiConsumer<Class<T>, Method> action) {
 		Arrays.asList(cl.getDeclaredMethods()).stream().filter(methodCheck)
 				.forEach(method -> action.accept(cl, method));
 	}
 
-	private static <T> void selectPerform(T obj, Predicate<Method> methodCheck, BiConsumer<T, Method> action) {
+	private static <T> void selectMethodsPerform(T obj, Predicate<Method> methodCheck, BiConsumer<T, Method> action) {
 		Arrays.asList(obj.getClass().getDeclaredMethods()).stream().filter(methodCheck)
 				.forEach(method -> action.accept(obj, method));
 	}
 
 	public static <T> void printMethodSignaturesWithFinal(T obj) {
-		selectPerform(obj, Inspector::checkForFinal, (T o, Method m) -> System.out.println(m));
+		selectMethodsPerform(obj, Inspector::checkForFinal, (T o, Method m) -> System.out.println(m));
 	}
 
 	private static boolean checkForFinal(Method method) {
@@ -56,15 +57,29 @@ public final class Inspector {
 	}
 
 	public static <T> void printNonPublicMethods(Class<T> cl) {
-		selectPerform(cl, Inspector::checkForNonPublic, (Class<T> c, Method m) -> System.out.println(m));
+		selectMethodsPerform(cl, Inspector::checkForNonPublic, (Class<T> c, Method m) -> System.out.println(m));
 	}
-	
+
 	private static boolean checkForNonPublic(Method method) {
 		return !Modifier.isPublic(method.getModifiers());
 	}
 
-	public static <T> void printAncestorsAndImplementedInterfaces(Class<T> cl) {
-		// TODO
+	public static void printAncestorsAndImplementedInterfaces(Class<?> cl) {
+		Class<?> ancestorClass = cl;
+		while (ancestorClass != null) {
+			System.out.println(ancestorClass);
+			printImplementedInterfaces(ancestorClass);
+			ancestorClass = ancestorClass.getSuperclass();
+		}
+	}
+
+	private static <T> void printImplementedInterfaces(Class<T> cl) {
+		for (Class<?> interf : cl.getInterfaces()) {
+			System.out.printf("     class %s implements interface %s%n", cl.getName(), interf.toString());
+		}
+	}
+
+	private static void printAncestorClasses(Class<?> cl) {
 	}
 
 	public static <T> void initializePrivateFields(T obj) {
@@ -87,10 +102,13 @@ public final class Inspector {
 
 			System.out.println("______________________Task 3_________________________");
 			printMethodSignaturesWithFinal(testObject);
-			
+
 			System.out.println("______________________Task 4_________________________");
 			printNonPublicMethods(BigDecimal.class);
-			
+
+			System.out.println("______________________Task 5_________________________");
+			printAncestorsAndImplementedInterfaces(LinkedHashMap.class);
+
 		} catch (ReflectiveOperationException e) {
 			e.printStackTrace();
 		}

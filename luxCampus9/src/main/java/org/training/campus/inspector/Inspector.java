@@ -32,6 +32,12 @@ public final class Inspector {
 		});
 	}
 
+	private static <T> void selectPerform(Class<T> cl, Predicate<Method> methodCheck,
+			BiConsumer<Class<T>, Method> action) {
+		Arrays.asList(cl.getDeclaredMethods()).stream().filter(methodCheck)
+				.forEach(method -> action.accept(cl, method));
+	}
+
 	private static <T> void selectPerform(T obj, Predicate<Method> methodCheck, BiConsumer<T, Method> action) {
 		Arrays.asList(obj.getClass().getDeclaredMethods()).stream().filter(methodCheck)
 				.forEach(method -> action.accept(obj, method));
@@ -43,14 +49,18 @@ public final class Inspector {
 
 	private static boolean checkForFinal(Method method) {
 		boolean containsFinal = Modifier.isFinal(method.getModifiers());
-		for(Parameter p:method.getParameters()) {
+		for (Parameter p : method.getParameters()) {
 			containsFinal = containsFinal || Modifier.isFinal(p.getModifiers());
 		}
 		return containsFinal;
 	}
 
 	public static <T> void printNonPublicMethods(Class<T> cl) {
-		// TODO
+		selectPerform(cl, Inspector::checkForNonPublic, (Class<T> c, Method m) -> System.out.println(m));
+	}
+	
+	private static boolean checkForNonPublic(Method method) {
+		return !Modifier.isPublic(method.getModifiers());
 	}
 
 	public static <T> void printAncestorsAndImplementedInterfaces(Class<T> cl) {
@@ -63,6 +73,7 @@ public final class Inspector {
 
 	public static void main(String[] args) {
 		try {
+			System.out.println("______________________Task 1_________________________");
 			var num = spawnObject(BigInteger.class, new Class[] { String.class, int.class }, new Object[] { "FF", 16 });
 			System.out.printf("created object of BigInteger: value = %s%n", num.toString());
 			var decimal = spawnObject(BigDecimal.class,
@@ -70,10 +81,16 @@ public final class Inspector {
 					new Object[] { "12345".toCharArray(), 0, 5, MathContext.DECIMAL32 });
 			System.out.printf("created object of BigDecimal: value = %s%n", decimal.toString());
 
+			System.out.println("______________________Task 2_________________________");
 			var testObject = new TestClass();
 			callMethodsWithNoArgs(testObject);
-			
+
+			System.out.println("______________________Task 3_________________________");
 			printMethodSignaturesWithFinal(testObject);
+			
+			System.out.println("______________________Task 4_________________________");
+			printNonPublicMethods(BigDecimal.class);
+			
 		} catch (ReflectiveOperationException e) {
 			e.printStackTrace();
 		}

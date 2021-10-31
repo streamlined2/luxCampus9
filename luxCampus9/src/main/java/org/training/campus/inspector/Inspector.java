@@ -2,6 +2,8 @@ package org.training.campus.inspector;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.MathContext;
@@ -36,7 +38,15 @@ public final class Inspector {
 	}
 
 	public static <T> void printMethodSignaturesWithFinal(T obj) {
-		// TODO
+		selectPerform(obj, Inspector::checkForFinal, (T o, Method m) -> System.out.println(m));
+	}
+
+	private static boolean checkForFinal(Method method) {
+		boolean containsFinal = Modifier.isFinal(method.getModifiers());
+		for(Parameter p:method.getParameters()) {
+			containsFinal = containsFinal || Modifier.isFinal(p.getModifiers());
+		}
+		return containsFinal;
 	}
 
 	public static <T> void printNonPublicMethods(Class<T> cl) {
@@ -60,7 +70,10 @@ public final class Inspector {
 					new Object[] { "12345".toCharArray(), 0, 5, MathContext.DECIMAL32 });
 			System.out.printf("created object of BigDecimal: value = %s%n", decimal.toString());
 
-			callMethodsWithNoArgs(new TestClass());
+			var testObject = new TestClass();
+			callMethodsWithNoArgs(testObject);
+			
+			printMethodSignaturesWithFinal(testObject);
 		} catch (ReflectiveOperationException e) {
 			e.printStackTrace();
 		}
@@ -69,7 +82,7 @@ public final class Inspector {
 }
 
 class TestClass {
-	public void a() {
+	public final void a() {
 		System.out.println("a");
 	}
 
@@ -81,15 +94,15 @@ class TestClass {
 		System.out.println("c");
 	}
 
-	private void d() {
+	private final void d() {
 		System.out.println("d");
 	}
 
-	public void e(int a) {
+	public void e(final int a) {
 		System.out.println("e");
 	}
 
-	void f(String a) {
+	void f(final String a) {
 		System.out.println("f");
 	}
 }

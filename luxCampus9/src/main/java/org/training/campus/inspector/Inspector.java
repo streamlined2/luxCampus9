@@ -1,6 +1,6 @@
 package org.training.campus.inspector;
 
-import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
@@ -9,6 +9,8 @@ import java.math.BigInteger;
 import java.math.MathContext;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -23,14 +25,17 @@ public final class Inspector {
 	}
 
 	public static <T> void callMethodsWithNoArgs(T obj) {
-		selectMethodsPerform(obj, method -> method.getParameterCount() == 0, (T o, Method m) -> {
-			try {
-				m.setAccessible(true);
-				m.invoke(o);
-			} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-				e.printStackTrace();
-			}
-		});
+		selectMethodsPerform(obj, method -> method.getParameterCount() == 0, Inspector::callMethod);
+	}
+
+	private static void callMethod(Object obj, Method method) {
+		try {
+			method.setAccessible(true);
+			method.invoke(obj);
+		} catch (ReflectiveOperationException e) {
+			e.printStackTrace();
+			throw new RuntimeException(e);
+		}
 	}
 
 	private static <T> void selectMethodsPerform(Class<T> cl, Predicate<Method> methodCheck,
@@ -45,10 +50,10 @@ public final class Inspector {
 	}
 
 	public static <T> void printMethodSignaturesWithFinal(T obj) {
-		selectMethodsPerform(obj, Inspector::checkForFinal, (T o, Method m) -> System.out.println(m));
+		selectMethodsPerform(obj, Inspector::checkIfFinal, (T o, Method m) -> System.out.println(m));
 	}
 
-	private static boolean checkForFinal(Method method) {
+	private static boolean checkIfFinal(Method method) {
 		boolean containsFinal = Modifier.isFinal(method.getModifiers());
 		for (Parameter p : method.getParameters()) {
 			containsFinal = containsFinal || Modifier.isFinal(p.getModifiers());
@@ -57,10 +62,10 @@ public final class Inspector {
 	}
 
 	public static <T> void printNonPublicMethods(Class<T> cl) {
-		selectMethodsPerform(cl, Inspector::checkForNonPublic, (Class<T> c, Method m) -> System.out.println(m));
+		selectMethodsPerform(cl, Inspector::checkIfNonPublic, (Class<T> c, Method m) -> System.out.println(m));
 	}
 
-	private static boolean checkForNonPublic(Method method) {
+	private static boolean checkIfNonPublic(Method method) {
 		return !Modifier.isPublic(method.getModifiers());
 	}
 
@@ -73,17 +78,54 @@ public final class Inspector {
 		}
 	}
 
-	private static <T> void printImplementedInterfaces(Class<T> cl) {
+	private static void printImplementedInterfaces(Class<?> cl) {
 		for (Class<?> interf : cl.getInterfaces()) {
-			System.out.printf("     class %s implements interface %s%n", cl.getName(), interf.toString());
+			System.out.printf("     class %s implements %s%n", cl.getName(), interf.toString());
 		}
 	}
 
-	private static void printAncestorClasses(Class<?> cl) {
+	public static void initializePrivateFields(Object obj) {
+		selectFieldsPerform(obj, Inspector::checkIfPrivate, Inspector::initializeField);
 	}
 
-	public static <T> void initializePrivateFields(T obj) {
-		// TODO
+	private static <T> void selectFieldsPerform(T obj, Predicate<Field> fieldCheck, BiConsumer<T, Field> action) {
+		Arrays.asList(obj.getClass().getDeclaredFields()).stream().filter(fieldCheck)
+				.forEach(field -> action.accept(obj, field));
+	}
+
+	private static boolean checkIfPrivate(Field field) {
+		return Modifier.isPrivate(field.getModifiers());
+	}
+
+	private static void initializeField(Object obj, Field field) {
+		Class<?> type = field.getType();
+		field.setAccessible(true);
+		try {
+			if (type.isPrimitive()) {
+				if (type == boolean.class) {
+					field.setBoolean(obj, false);
+				} else if (type == byte.class) {
+					field.setByte(obj, (byte) 0);
+				} else if (type == short.class) {
+					field.setShort(obj, (short) 0);
+				} else if (type == int.class) {
+					field.setInt(obj, 0);
+				} else if (type == long.class) {
+					field.setLong(obj, 0);
+				} else if (type == float.class) {
+					field.setFloat(obj, 0f);
+				} else if (type == double.class) {
+					field.setDouble(obj, 0D);
+				} else if (type == char.class) {
+					field.setChar(obj, '\0');
+				}
+			} else {
+				field.set(obj, null);
+			}
+		} catch (ReflectiveOperationException e) {
+			throw new RuntimeException(e);
+		}
+
 	}
 
 	public static void main(String[] args) {
@@ -97,7 +139,7 @@ public final class Inspector {
 			System.out.printf("created object of BigDecimal: value = %s%n", decimal.toString());
 
 			System.out.println("______________________Task 2_________________________");
-			var testObject = new TestClass();
+			var testObject = new MethodContainerClass();
 			callMethodsWithNoArgs(testObject);
 
 			System.out.println("______________________Task 3_________________________");
@@ -109,6 +151,12 @@ public final class Inspector {
 			System.out.println("______________________Task 5_________________________");
 			printAncestorsAndImplementedInterfaces(LinkedHashMap.class);
 
+			System.out.println("______________________Task 6_________________________");
+			var dummy = new FieldContainerClass();
+			System.out.printf("initial values are %s%n", dummy);
+			initializePrivateFields(dummy);
+			System.out.printf("initialized to zero/null values are %s%n", dummy);
+
 		} catch (ReflectiveOperationException e) {
 			e.printStackTrace();
 		}
@@ -116,7 +164,7 @@ public final class Inspector {
 
 }
 
-class TestClass {
+class MethodContainerClass {
 	public final void a() {
 		System.out.println("a");
 	}
@@ -139,5 +187,28 @@ class TestClass {
 
 	void f(final String a) {
 		System.out.println("f");
+	}
+}
+
+class FieldContainerClass {
+	private boolean booleanValue = true;
+	private byte byteValue = Byte.MAX_VALUE;
+	private short shortValue = Short.MAX_VALUE;
+	private int intValue = Integer.MAX_VALUE;
+	private long longValue = Long.MAX_VALUE;
+	private float floatValue = Float.MAX_VALUE;
+	private double doubleValue = Double.MAX_VALUE;
+	private char charValue = 'A';
+	private BigDecimal bigDecValue = BigDecimal.ONE;
+	private BigInteger bigIntValue = BigInteger.TEN;
+
+	@Override
+	public String toString() {
+		var join = new StringJoiner(",", "[", "]");
+		join.add(Boolean.toString(booleanValue)).add(Byte.toString(byteValue)).add(Short.toString(shortValue))
+				.add(Integer.toBinaryString(intValue)).add(Long.toString(longValue)).add(Float.toString(floatValue))
+				.add(Double.toString(doubleValue)).add(Character.toString(charValue)).add(Objects.toString(bigDecValue))
+				.add(Objects.toString(bigIntValue));
+		return join.toString();
 	}
 }
